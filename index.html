@@ -444,6 +444,11 @@
   // ── Detecta saída ──
   async function registrarBloqueio() {
     if (!avaliacaoAtiva || !nomeColaborador) return;
+
+    // Ignora blur causado pelo clique dentro do iframe do JotForm
+    const ativo = document.activeElement;
+    if (ativo && ativo.tagName === 'IFRAME') return;
+
     avaliacaoAtiva = false;
     try {
       await setDoc(doc(db, "bloqueados", chaveNome(nomeColaborador)), {
@@ -454,9 +459,23 @@
     mostrarSecao('secao-encerrada');
   }
 
-  window.addEventListener("blur", registrarBloqueio);
+  // Blur: aguarda um tick para checar se o foco foi para o iframe
+  window.addEventListener("blur", () => {
+    setTimeout(registrarBloqueio, 100);
+  });
+
+  // Troca de aba: confiável, não precisa checar iframe
   document.addEventListener("visibilitychange", () => {
-    if (document.visibilityState === "hidden") registrarBloqueio();
+    if (document.visibilityState === "hidden" && avaliacaoAtiva) {
+      const nome = nomeColaborador;
+      if (!nome) return;
+      avaliacaoAtiva = false;
+      setDoc(doc(db, "bloqueados", chaveNome(nome)), {
+        nome: nome,
+        bloqueadoEm: new Date().toISOString()
+      }).catch(() => {});
+      mostrarSecao('secao-encerrada');
+    }
   });
 
   // ── Senha de liberação ──
